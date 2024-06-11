@@ -12,16 +12,20 @@ impl Klv {
         let tag = match Tag::from_repr(tag_id) {
             Some(tag) => tag,
             None => {
-                return Err(Errors::UnsupportedTag)
+                return Err(Errors::UnsupportedTag(tag_id as usize))
             }
         };
 
-        let value = KlvValue::from_bytes(tag, raw_value)?;
+        let value = KlvValue::from_bytes(tag, &raw_value)?;
         
         Ok(Klv { tag, value })
     }
 
     pub fn tag(&self) -> Tag {
         self.tag
+    }
+
+    pub fn value(&self) -> &KlvValue {
+        &self.value
     }
 }

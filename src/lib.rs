@@ -7,5 +7,6 @@ pub mod tag;
 pub enum Errors {
     NoKLVPacket,
     ValueOutOfBounds,
-    UnsupportedTag,
+    UnsupportedTag(usize),
+    InvalidChecksum,
 }

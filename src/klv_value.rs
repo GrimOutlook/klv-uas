@@ -2,6 +2,8 @@
 //! published 2023-March-02.
 use std::sync::Arc;
 
+use bitvec::{field::BitField, order::Msb0, view::BitView};
+
 use crate::{klv_packet::KlvPacket, tag::Tag, Errors};
 
 /// The value types that are supported to be stored in a UAS Datalink KLV packet.
@@ -69,23 +71,23 @@ impl KlvValue {
         let value = match tag {
             Tag::Checksum |
             Tag::PlatformHeadingAngle => Self::uint16(bytes),
-            Tag::PrecisionTimeStamp => Self::uint64(bytes)
-            _ => return Err(Errors::UnsupportedTag)
+            Tag::PrecisionTimeStamp => Self::uint64(bytes),
+            Tag::MissionID => Self::utf8(bytes),
+            _ => return Err(Errors::UnsupportedTag(tag as usize))
         };
 
         Ok(value)
     }
 
-    pub fn get(&self) -> KlvValue {
-        
-        todo!()
-    }
-
     fn uint16(bytes: &Box<[u8]>) -> KlvValue {
-        KlvValue::Uint16(0)
+        KlvValue::Uint16(bytes.view_bits::<Msb0>().load_be())
     }
 
     fn uint64(bytes: &Box<[u8]>) -> KlvValue {
-        KlvValue::Uint64(0)
+        KlvValue::Uint64(bytes.view_bits::<Msb0>().load_be())
+    }
+
+    fn utf8(bytes: &Box<[u8]>) -> KlvValue {
+        return KlvValue::UTF8(std::str::from_utf8(bytes).expect("Cannot create UTF8 string from bytes").into());
     }
 }
