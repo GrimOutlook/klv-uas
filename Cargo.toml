@@ -1,0 +1,24 @@
+[package]
+name = "klv-uas"
+version = "0.1.0"
+authors = ["Dominic Grimaldi <dominic.j.grimaldi@gmail.com>"]
+edition = "2021"
+description = "A simple library for parsing UAS KLV data from raw data."
+repository = "https://github.com/GrimOutlook/klv-uas"
+documentation = "https://docs.rs/klv-uas"
+license = "MIT"
+keywords = ["parser", "klv", "uas"]
+categories = ["multimedia::video", "aerospace::unmanned-aerial-vehicles"]
+
+[dependencies]
+bitvec = "1.0.1"
+log = { version = "0.4.21", default-features = false, optional = true }
+memmem = { version = "0.1.1", default-features = false, optional = true }
+
+[dev-dependencies]
+env_logger = "0.11.3"
+test-case = "3.3.1"
+
+[features]
+log = ["dep:log"]
+search = ["dep:memmem"]

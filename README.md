@@ -1,6 +1,54 @@
-# klv-reader
+# klv-uas
 
-A simple parser for extracting KLV data from transport stream packet payloads. Typically used in tandem with [ts-reader](https://github.com/GrimOutlook/ts-reader).
+[![Crates.io Total Downloads](https://img.shields.io/crates/d/klv-uas)](https://crates.io/crates/klv-uas)
+[![docs.rs](https://img.shields.io/docsrs/klv-uas)](https://docs.rs/klv-uas)
+[![Crates.io Version](https://img.shields.io/crates/v/klv-uas)](https://crates.io/crates/klv-uas/versions)
+[![GitHub Repo stars](https://img.shields.io/github/stars/GrimOutlook/klv-uas)](https://github.com/GrimOutlook/klv-uas)
+[![Crates.io License](https://img.shields.io/crates/l/klv-uas)](../LICENSE)
+
+A library for extracting KLV data from transport stream packet payloads. This library is not
+indented to be used for injecting KLV data into video streams.
+
+## Example
+
+```rust
+extern crate klv_uas;
+
+use std::env;
+use ts_analyzer::reader::TSReader;
+use std::fs::File;
+use std::io::BufReader;
+
+fn main() {
+    env_logger::init();
+    let filename = env::var("TEST_FILE").expect("Environment variable not set");
+
+    let f = File::open(filename.clone()).expect("Couldn't open file");
+    let mut reader = TSReader::new(f).expect("Transport Stream file contains no SYNC bytes.");
+
+    let klv: KLVPacket;
+    loop {
+        // Get a payload from the reader. The `unchecked` in the method name means that if an error
+        // is hit then `Some(payload)` is returned rather than `Ok(Some(payload))` in order to reduce
+        // `.unwrap()` (or other) calls.
+        let payload = reader.next_payload_unchecked()
+                       // Assume that a payload was found in the file and was successfully parsed.
+                       .expect("No valid payload found");
+
+        // Try to parse a UAS LS KLV packet from the payload that was found. This will likely only
+        // work if you have the `search` feature enabled as the UAS LS KLV record does not start at
+        // the first byte of the payload.
+        klv = match KLVPacket::from_bytes(payload) {
+            Ok(klv) => klv,
+            Err(_) => continue,
+        };
+
+        break
+    }
+
+    println!("Timestamp of KLV packet: {}", klv.precision_time_stamp());
+}
+```
 
 ---
 
