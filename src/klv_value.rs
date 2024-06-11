@@ -2,11 +2,12 @@
 //! published 2023-March-02.
 use std::sync::Arc;
 
-use crate::klv_packet::KLVPacket;
+use crate::{klv_packet::KlvPacket, tag::Tag, Errors};
 
-/// The value types that are supported to be stored in a UAS Datalink KLV packet
+/// The value types that are supported to be stored in a UAS Datalink KLV packet.
+/// The first value is always the tag number. The second value is the value.
 #[derive(Clone, Debug)]
-pub enum Value {
+pub enum KlvValue {
     /// Variable length, 2's complement signed integer
     /// 
     /// Storing this as an i64 for now but this may need to be some form of BigInt or whatever that
@@ -58,7 +59,33 @@ pub enum Value {
     /// NOTE: This is not supported yet.
     FLP,
     /// Local Set
-    Set(Vec<KLVPacket>),
+    Set(Vec<KlvPacket>),
     /// String of characters following the utf8 standard
     UTF8(Arc<str>)
+}
+
+impl KlvValue {
+    pub fn from_bytes(tag: Tag, bytes: &Box<[u8]>) -> Result<KlvValue, Errors> {
+        let value = match tag {
+            Tag::Checksum |
+            Tag::PlatformHeadingAngle => Self::uint16(bytes),
+            Tag::PrecisionTimeStamp => Self::uint64(bytes)
+            _ => return Err(Errors::UnsupportedTag)
+        };
+
+        Ok(value)
+    }
+
+    pub fn get(&self) -> KlvValue {
+        
+        todo!()
+    }
+
+    fn uint16(bytes: &Box<[u8]>) -> KlvValue {
+        KlvValue::Uint16(0)
+    }
+
+    fn uint64(bytes: &Box<[u8]>) -> KlvValue {
+        KlvValue::Uint64(0)
+    }
 }
