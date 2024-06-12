@@ -189,7 +189,7 @@ impl KlvPacket {
     /// Return the precision time stamp of the UAS LS KLV packet
     pub fn mission_id(&self) -> Option<Arc<str>> {
         match self.get(Tag::MissionID)?.value() {
-            KlvValue::UTF8(value) => Some(value.clone()),
+            KlvValue::Utf8(value) => Some(value.clone()),
             _ => panic!("This packet does not have a mission ID and that error was not caught. This should be unreachable")
         }
     }

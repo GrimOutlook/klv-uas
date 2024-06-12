@@ -3,12 +3,15 @@
 use std::sync::Arc;
 
 use bitvec::{field::BitField, order::Msb0, view::BitView};
+use strum_macros::EnumDiscriminants;
 
-use crate::{klv_packet::KlvPacket, tag::Tag, Errors};
+use crate::{klv_packet::KlvPacket, Errors};
 
 /// The value types that are supported to be stored in a UAS Datalink KLV packet.
 /// The first value is always the tag number. The second value is the value.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, EnumDiscriminants)]
+#[strum_discriminants(vis(pub))]
+#[strum_discriminants(name(KlvValueType))]
 pub enum KlvValue {
     /// Variable length, 2's complement signed integer
     /// 
@@ -63,7 +66,7 @@ pub enum KlvValue {
     /// Local Set
     Set(Vec<KlvPacket>),
     /// String of characters following the utf8 standard
-    UTF8(Arc<str>)
+    Utf8(Arc<str>)
 }
 
 impl KlvValue {
@@ -88,6 +91,6 @@ impl KlvValue {
     }
 
     fn utf8(bytes: &Box<[u8]>) -> KlvValue {
-        return KlvValue::UTF8(std::str::from_utf8(bytes).expect("Cannot create UTF8 string from bytes").into());
+        return KlvValue::Utf8(std::str::from_utf8(bytes).expect("Cannot create UTF8 string from bytes").into());
     }
 }
