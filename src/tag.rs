@@ -8,8 +8,9 @@
 //! duplication.
 //! https://stackoverflow.com/questions/36928569/how-can-i-create-enums-with-constant-values-in-rust
 
-use strum_macros::{EnumCount, EnumDiscriminants, FromRepr};
-use crate::klv_value::{KlvValue, KlvValueType};
+
+
+use crate::klv_value::KlvValueType;
 
 /// Reference summary section of the [`KlvValue`] page for more in-depth reasoning but this macro
 /// is shamelessly stolen from an absolute genius's
@@ -18,177 +19,203 @@ use crate::klv_value::{KlvValue, KlvValueType};
 macro_rules! def_tags {
     (
         $(#[$attr:meta])*
-        $vis:vis $name:ident => $ret_type:ty {
-            $($variant:ident => ($typ:expr, $id:expr));+
-            $(,)?
+        $vis:vis $name:ident => $ret_typ:ty, $ret_id:ty {
+            $($variant:ident => $typ:expr, $id:expr);+
+            $(;)?
         }
     ) => {
         $(#[$attr])*
-        $vis struct $name($ret_type);
+        $vis struct $name($ret_typ, $ret_id);
 
+        // We allow non upper case globals here because we are using these constants as if they are
+        // Enums.
+        #[allow(non_upper_case_globals)]
         impl $name {
             $(
                 pub const $variant: Self = Self($typ, $id);
             )+
 
             pub const VARIANTS: &'static [Self] = &[$(Self::$variant),+];
+            pub const COUNT: usize = [$(Self::$variant),+].len();
 
-            pub const fn r#type(self) -> $ret_type {
+            pub const fn tag_type(self) -> $ret_typ {
                 self.0
             }
 
-            pub const fn id(self) -> $ret_type {
+            pub const fn id(self) -> $ret_id {
                 self.1
+            }
+        }
+
+        impl Into<$ret_typ> for $name {
+            fn into(self) -> $ret_typ {
+                self.tag_type()
+            }
+        }
+
+        impl Into<$ret_id> for $name {
+            fn into(self) -> $ret_id {
+                self.id()
+            }
+        }
+
+        impl From<$ret_id> for $name {
+            fn from(id: $ret_id) -> $name {
+                match Self::VARIANTS.iter().find(|v| v.id() == id) {
+                    Some(v) => *v,
+                    None => Tag::Unknown,
+                }
             }
         }
     };
 }
 
 def_tags! {
-    #[derive(Clone, Copy, Debug, FromRepr, PartialEq)]
-    pub Tag => KlvValueType {
-        Checksum => (KlvValueType::Uint16, 1);
-        PrecisionTimeStamp => (KlvValueType::Uint64, 2);
-        MissionID => (KlvValueType::Utf8, 3);
-        // PlatformTailNumber = 4,
-        // PlatformHeadingAngle = 5,
-        // PlatformPitchAngle = 6,
-        // PlatformRollAngle = 7,
-        // PlatformTrueAirspeed = 8,
-        // PlatformIndicatedAirspeed = 9,
-        // PlatformDesignation = 10,
-        // ImageSourceSensor = 11,
-        // ImageCoordinateSystem = 12,
-        // SensorLatitude = 13,
-        // SensorLongitude = 14,
-        // SensorTrueAltitude = 15,
-        // SensorHorizontalFieldOfView = 16,
-        // SensorVerticalFieldOfView = 17,
-        // SensorRelativeAzimuthAngle = 18,
-        // SensorRelativeElevationAngle = 19,
-        // SensorRelativeRollAngle = 20,
-        // SlantRange = 21,
-        // TargetWidth = 22,
-        // FrameCenterLatitude = 23,
-        // FrameCenterLongitude = 24,
-        // FrameCenterElevation = 25,
-        // OffsetCornerLatitudePoint1 = 26,
-        // OffsetCornerLongitudePoint1 = 27,
-        // OffsetCornerLatitudePoint2 = 28,
-        // OffsetCornerLongitudePoint2 = 29,
-        // OffsetCornerLatitudePoint3 = 30,
-        // OffsetCornerLongitudePoint3 = 31,
-        // OffsetCornerLatitudePoint4 = 32,
-        // OffsetCornerLongitudePoint4 = 33,
-        // IcingDetected = 34,
-        // WindDirection = 35,
-        // WindSpeed = 36,
-        // StaticPressure = 37,
-        // DensityAltitude = 38,
-        // OutsideAirTemperature = 39,
-        // TargetLocationLatitude = 40,
-        // TargetLocationLongitude = 41,
-        // TargetLocationElevation = 42,
-        // TargetTrackGateWidth = 43,
-        // TargetTrackGateHeight = 44,
-        // TargetErrorEstimateCE90 = 45,
-        // TargetErrorEstimateLe90 = 46,
-        // GenericFlagData = 47,
-        // SecurityLocalSet = 48,
-        // DifferentialPressure = 49,
-        // PlatformAngleOfAttack = 50,
-        // PlatformVerticalSpeed = 51,
-        // PlatformSideslipAngle = 52,
-        // AirfieldBarometricPressure = 53,
-        // AirfieldElevation = 54,
-        // RelativeHumidity = 55,
-        // PlatformGroundSpeed = 56,
-        // GroundRange = 57,
-        // PlatformFuelRemaining = 58,
-        // PlatformCallSign = 59,
-        // WeaponLoad = 60,
-        // WeaponFired = 61,
-        // LaserPrfCode = 62,
-        // SensorFieldOfViewName = 63,
-        // PlatformMagneticHeading = 64,
-        // UasDatalinkLsVersionNumber = 65,
-        // Deprecated = 66,
-        // AlternatePlatformLatitude = 67,
-        // AlternatePlatformLongitude = 68,
-        // AlternatePlatformAltitude = 69,
-        // AlternatePlatformName = 70,
-        // AlternatePlatformHeading = 71,
-        // EventStartTime = 72,
-        // RvtLocalSet = 73,
-        // VmtiLocalSet = 74,
-        // SensorEllipsoidHeight = 75,
-        // AlternatePlatformEllipsoidHeight = 76,
-        // OperationalMode = 77,
-        // FrameCenterHeightAboveEllipsoid = 78,
-        // SensorNorthVelocity = 79,
-        // SensorEastVelocity = 80,
-        // ImageHorizonPixelPack = 81,
-        // CornerLatitudePoint1Full = 82,
-        // CornerLongitudePoint1Full = 83,
-        // CornerLatitudePoint2Full = 84,
-        // CornerLongitudePoint2Full = 85,
-        // CornerLatitudePoint3Full = 86,
-        // CornerLongitudePoint3Full = 87,
-        // CornerLatitudePoint4Full = 88,
-        // CornerLongitudePoint4Full = 89,
-        // PlatformPitchAngleFull = 90,
-        // PlatformRollAngleFull = 91,
-        // PlatformAngleOfAttackFull = 92,
-        // PlatformSideslipAngleFull = 93,
-        // MiisCoreIdentifier = 94,
-        // SarMotionImageryLocalSet = 95,
-        // TargetWidthExtended = 96,
-        // RangeImageLocalSet = 97,
-        // GeoRegistrationLocalSet = 98,
-        // CompositeImagingLocalSet = 99,
-        // SegmentLocalSet = 100,
-        // AmendLocalSet = 101,
-        // SdccFlp = 102,
-        // DensityAltitudeExtended = 103,
-        // SensorEllipsoidHeightExtended = 104,
-        // AlternatePlatformEllipsoidHeightExtended = 105,
-        // StreamDesignator = 106,
-        // OperationalBase = 107,
-        // BroadcastSource = 108,
-        // RangeToRecoveryLocation = 109,
-        // TimeAirborne = 110,
-        // PropulsionUnitSpeed = 111,
-        // PlatformCourseAngle = 112,
-        // AltitudeAgl = 113,
-        // RadarAltimeter = 114,
-        // ControlCommand = 115,
-        // ControlCommandVerificationList = 116,
-        // SensorAzimuthRate = 117,
-        // SensorElevationRate = 118,
-        // SensorRollRate = 119,
-        // OnboardMiStoragePercentFull = 120,
-        // ActiveWaypointList = 121,
-        // CountryCodes = 122,
-        // NumberOfNavsatsInView = 123,
-        // PositionMethodSource = 124,
-        // PlatformStatus = 125,
-        // SensorControlMode = 126,
-        // SensorFrameRatePack = 127,
-        // WavelengthsList = 128,
-        // TargetId = 129,
-        // AirbaseLocations = 130,
-        // TakeoffTime = 131,
-        // TransmissionFrequency = 132,
-        // OnboardMiStorageCapacity = 133,
-        // ZoomPercentage = 134,
-        // CommunicationsMethod = 135,
-        // LeapSeconds = 136,
-        // CorrectionOffset = 137,
-        // PayloadList = 138,
-        // ActivePayloads = 139,
-        // WeaponStores = 140,
-        // WaypointList = 141,
-        // ViewDomain = 142,
-        // MetadataSubstreamIdPack = 143,
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub Tag => KlvValueType, usize {
+        Unknown                                     => KlvValueType::Unknown,        0;
+        Checksum                                    => KlvValueType::Uint16,        1;
+        PrecisionTimeStamp                          => KlvValueType::Uint64,        2;
+        MissionID                                   => KlvValueType::Utf8,          3;
+        PlatformTailNumber                          => KlvValueType::Utf8,          4;
+        PlatformHeadingAngle                        => KlvValueType::Uint16,        5;
+        PlatformPitchAngle                          => KlvValueType::Int16,         6;
+        PlatformRollAngle                           => KlvValueType::Int16,         7;
+        PlatformTrueAirspeed                        => KlvValueType::Uint8,         8;
+        PlatformIndicatedAirspeed                   => KlvValueType::Uint8,         9;
+        PlatformDesignation                         => KlvValueType::Utf8,          10;
+        ImageSourceSensor                           => KlvValueType::Utf8,          11;
+        ImageCoordinateSystem                       => KlvValueType::Utf8,          12;
+        SensorLatitude                              => KlvValueType::Int32,         13;
+        SensorLongitude                             => KlvValueType::Int32,         14;
+        SensorTrueAltitude                          => KlvValueType::Uint16,        15;
+        SensorHorizontalFieldOfView                 => KlvValueType::Uint16,        16;
+        SensorVerticalFieldOfView                   => KlvValueType::Uint16,        17;
+        SensorRelativeAzimuthAngle                  => KlvValueType::Uint32,        18;
+        SensorRelativeElevationAngle                => KlvValueType::Int32,         19;
+        SensorRelativeRollAngle                     => KlvValueType::Uint32,        20;
+        SlantRange                                  => KlvValueType::Uint32,        21;
+        TargetWidth                                 => KlvValueType::Uint16,        22;
+        FrameCenterLatitude                         => KlvValueType::Int32,         23;
+        FrameCenterLongitude                        => KlvValueType::Int32,         24;
+        FrameCenterElevation                        => KlvValueType::Uint16,        25;
+        OffsetCornerLatitudePoint1                  => KlvValueType::Int16,         26;
+        OffsetCornerLongitudePoint1                 => KlvValueType::Int16,         27;
+        OffsetCornerLatitudePoint2                  => KlvValueType::Int16,         28;
+        OffsetCornerLongitudePoint2                 => KlvValueType::Int16,         29;
+        OffsetCornerLatitudePoint3                  => KlvValueType::Int16,         30;
+        OffsetCornerLongitudePoint3                 => KlvValueType::Int16,         31;
+        OffsetCornerLatitudePoint4                  => KlvValueType::Int16,         32;
+        OffsetCornerLongitudePoint4                 => KlvValueType::Int16,         33;
+        IcingDetected                               => KlvValueType::Uint8,         34;
+        WindDirection                               => KlvValueType::Uint16,        35;
+        WindSpeed                                   => KlvValueType::Uint8,         36;
+        StaticPressure                              => KlvValueType::Uint16,        37;
+        DensityAltitude                             => KlvValueType::Uint16,        38;
+        OutsideAirTemperature                       => KlvValueType::Int8,          39;
+        TargetLocationLatitude                      => KlvValueType::Int32,         40;
+        TargetLocationLongitude                     => KlvValueType::Int32,         41;
+        TargetLocationElevation                     => KlvValueType::Uint16,        42;
+        TargetTrackGateWidth                        => KlvValueType::Uint8,         43;
+        TargetTrackGateHeight                       => KlvValueType::Uint8,         44;
+        TargetErrorEstimateCE90                     => KlvValueType::Uint16,        45;
+        TargetErrorEstimateLe90                     => KlvValueType::Uint16,        46;
+        GenericFlagData                             => KlvValueType::Uint8,         47;
+        SecurityLocalSet                            => KlvValueType::Set,           48;
+        DifferentialPressure                        => KlvValueType::Uint16,        49;
+        PlatformAngleOfAttack                       => KlvValueType::Int16,         50;
+        PlatformVerticalSpeed                       => KlvValueType::Int16,         51;
+        PlatformSideslipAngle                       => KlvValueType::Int16,         52;
+        AirfieldBarometricPressure                  => KlvValueType::Uint16,        53;
+        AirfieldElevation                           => KlvValueType::Uint16,        54;
+        RelativeHumidity                            => KlvValueType::Uint8,         55;
+        PlatformGroundSpeed                         => KlvValueType::Uint8,         56;
+        GroundRange                                 => KlvValueType::Uint32,        57;
+        PlatformFuelRemaining                       => KlvValueType::Uint16,        58;
+        PlatformCallSign                            => KlvValueType::Utf8,          59;
+        WeaponLoad                                  => KlvValueType::Uint16,        60;
+        WeaponFired                                 => KlvValueType::Uint8,         61;
+        LaserPrfCode                                => KlvValueType::Uint16,        62;
+        SensorFieldOfViewName                       => KlvValueType::Uint8,         63;
+        PlatformMagneticHeading                     => KlvValueType::Uint16,        64;
+        UasDatalinkLsVersionNumber                  => KlvValueType::Uint8,         65;
+        Deprecated                                  => KlvValueType::Deprecated,    66;
+        AlternatePlatformLatitude                   => KlvValueType::Int32,         67;
+        AlternatePlatformLongitude                  => KlvValueType::Int32,         68;
+        AlternatePlatformAltitude                   => KlvValueType::Uint16,        69;
+        AlternatePlatformName                       => KlvValueType::Utf8,          70;
+        AlternatePlatformHeading                    => KlvValueType::Uint16,        71;
+        EventStartTime                              => KlvValueType::Uint64,        72;
+        RvtLocalSet                                 => KlvValueType::Set,           73;
+        VmtiLocalSet                                => KlvValueType::Set,           74;
+        SensorEllipsoidHeight                       => KlvValueType::Uint16,        75;
+        AlternatePlatformEllipsoidHeight            => KlvValueType::Uint16,        76;
+        OperationalMode                             => KlvValueType::Uint8,         77;
+        FrameCenterHeightAboveEllipsoid             => KlvValueType::Uint16,        78;
+        SensorNorthVelocity                         => KlvValueType::Int16,         79;
+        SensorEastVelocity                          => KlvValueType::Int16,         80;
+        ImageHorizonPixelPack                       => KlvValueType::DLP,           81;
+        CornerLatitudePoint1Full                    => KlvValueType::Int32,         82;
+        CornerLongitudePoint1Full                   => KlvValueType::Int32,         83;
+        CornerLatitudePoint2Full                    => KlvValueType::Int32,         84;
+        CornerLongitudePoint2Full                   => KlvValueType::Int32,         85;
+        CornerLatitudePoint3Full                    => KlvValueType::Int32,         86;
+        CornerLongitudePoint3Full                   => KlvValueType::Int32,         87;
+        CornerLatitudePoint4Full                    => KlvValueType::Int32,         88;
+        CornerLongitudePoint4Full                   => KlvValueType::Int32,         89;
+        PlatformPitchAngleFull                      => KlvValueType::Int32,         90;
+        PlatformRollAngleFull                       => KlvValueType::Int32,         91;
+        PlatformAngleOfAttackFull                   => KlvValueType::Int32,         92;
+        PlatformSideslipAngleFull                   => KlvValueType::Int32,         93;
+        MiisCoreIdentifier                          => KlvValueType::Byte,          94;
+        SarMotionImageryLocalSet                    => KlvValueType::Set,           95;
+        TargetWidthExtended                         => KlvValueType::IMAPB,         96;
+        RangeImageLocalSet                          => KlvValueType::Set,           97;
+        GeoRegistrationLocalSet                     => KlvValueType::Set,           98;
+        CompositeImagingLocalSet                    => KlvValueType::Set,           99;
+        SegmentLocalSet                             => KlvValueType::Set,           100;
+        AmendLocalSet                               => KlvValueType::Set,           101;
+        SdccFlp                                     => KlvValueType::FLP,           102;
+        DensityAltitudeExtended                     => KlvValueType::IMAPB,         103;
+        SensorEllipsoidHeightExtended               => KlvValueType::IMAPB,         104;
+        AlternatePlatformEllipsoidHeightExtended    => KlvValueType::IMAPB,         105;
+        StreamDesignator                            => KlvValueType::Utf8,          106;
+        OperationalBase                             => KlvValueType::Utf8,          107;
+        BroadcastSource                             => KlvValueType::Utf8,          108;
+        RangeToRecoveryLocation                     => KlvValueType::IMAPB,         109;
+        TimeAirborne                                => KlvValueType::Uint,          110;
+        PropulsionUnitSpeed                         => KlvValueType::Uint,          111;
+        PlatformCourseAngle                         => KlvValueType::IMAPB,         112;
+        AltitudeAgl                                 => KlvValueType::IMAPB,         113;
+        RadarAltimeter                              => KlvValueType::IMAPB,         114;
+        ControlCommand                              => KlvValueType::DLP,           115;
+        ControlCommandVerificationList              => KlvValueType::DLP,           116;
+        SensorAzimuthRate                           => KlvValueType::IMAPB,         117;
+        SensorElevationRate                         => KlvValueType::IMAPB,         118;
+        SensorRollRate                              => KlvValueType::IMAPB,         119;
+        OnboardMiStoragePercentFull                 => KlvValueType::IMAPB,         120;
+        ActiveWaypointList                          => KlvValueType::DLP,           121;
+        CountryCodes                                => KlvValueType::VLP,           122;
+        NumberOfNavsatsInView                       => KlvValueType::Uint,          123;
+        PositionMethodSource                        => KlvValueType::Uint,          124;
+        PlatformStatus                              => KlvValueType::Uint,          125;
+        SensorControlMode                           => KlvValueType::Uint,          126;
+        SensorFrameRatePack                         => KlvValueType::DLP,           127;
+        WavelengthsList                             => KlvValueType::VLP,           128;
+        TargetId                                    => KlvValueType::Utf8,          129;
+        AirbaseLocations                            => KlvValueType::VLP,           130;
+        TakeoffTime                                 => KlvValueType::Uint,          131;
+        TransmissionFrequency                       => KlvValueType::IMAPB,         132;
+        OnboardMiStorageCapacity                    => KlvValueType::Uint,          133;
+        ZoomPercentage                              => KlvValueType::IMAPB,         134;
+        CommunicationsMethod                        => KlvValueType::Utf8,          135;
+        LeapSeconds                                 => KlvValueType::Int,           136;
+        CorrectionOffset                            => KlvValueType::Int,           137;
+        PayloadList                                 => KlvValueType::VLP,           138;
+        ActivePayloads                              => KlvValueType::Byte,          139;
+        WeaponStores                                => KlvValueType::VLP,           140;
+        WaypointList                                => KlvValueType::VLP,           141;
+        ViewDomain                                  => KlvValueType::VLP,           142;
+        MetadataSubstreamIdPack                     => KlvValueType::Byte,          143;
     }
 }

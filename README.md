@@ -18,6 +18,7 @@ use std::env;
 use ts_analyzer::reader::TSReader;
 use std::fs::File;
 use std::io::BufReader;
+use klv_uas::klv_packet::KlvPacket;
 
 fn main() {
     env_logger::init();
@@ -26,7 +27,7 @@ fn main() {
     let f = File::open(filename.clone()).expect("Couldn't open file");
     let mut reader = TSReader::new(f).expect("Transport Stream file contains no SYNC bytes.");
 
-    let klv: KLVPacket;
+    let klv: KlvPacket;
     loop {
         // Get a payload from the reader. The `unchecked` in the method name means that if an error
         // is hit then `Some(payload)` is returned rather than `Ok(Some(payload))` in order to reduce
@@ -38,9 +39,12 @@ fn main() {
         // Try to parse a UAS LS KLV packet from the payload that was found. This will likely only
         // work if you have the `search` feature enabled as the UAS LS KLV record does not start at
         // the first byte of the payload.
-        klv = match KLVPacket::from_bytes(payload) {
+        klv = match KlvPacket::from_bytes(payload) {
             Ok(klv) => klv,
-            Err(_) => continue,
+            Err(e) => {
+                println!("Error {:?}", e);
+                continue
+            },
         };
 
         break

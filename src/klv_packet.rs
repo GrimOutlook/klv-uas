@@ -1,6 +1,5 @@
 use std::{io::{Cursor, Read}, sync::Arc};
-use strum::EnumCount;
-use bitvec::{bitvec, field::BitField, order::Msb0, view::BitView};
+use bitvec::{field::BitField, order::Msb0, view::BitView};
 
 use crate::{klv::Klv, klv_value::KlvValue, tag::Tag, Errors};
 
@@ -9,11 +8,11 @@ use memmem::{Searcher, TwoWaySearcher};
 
 #[cfg(feature = "log")]
 #[cfg(not(test))]
-use log::trace;
+use log::{debug, trace};
 
 #[cfg(feature = "log")]
 #[cfg(test)]
-use std::{println as trace, println as warn}; 
+use std::{println as trace, println as warn, println as debug}; 
 
 pub const UAS_LOCAL_SET_UNIVERSAL_LABEL: [u8; 16] = [
     0x06, 0x0E, 0x2B, 0x34,
@@ -44,32 +43,28 @@ impl KlvPacket {
     /// 
     /// The first byte in the `bytes` slice should be the start of the BER sequence.
     fn get_ber_value(buf: &mut Cursor<Box<[u8]>>) -> usize {
-        let mut bytes = bitvec![u8, Msb0;];
-        // For each byte check to see if the byte starts with a 1 in the MSB position.
+        // Buffer for reading bytes
         let mut new_byte: [u8; 1] = [0];
-        loop {
-            let Ok(_) = buf.read(&mut new_byte) else {
-                panic!("Can't read from bytes")
+        // Get the first byte so we can evaluate if we need more
+        buf.read(&mut new_byte).expect("Can't read from bytes");
+        
+        // If the first bit is a 1 then this is a long-form BER.
+        let bits = new_byte.view_bits::<Msb0>();
+        let msb = bits.get(0).expect("Cannot get the first bit from the byte array");
+        
+        if msb == true {
+            let Some(remainder) =  bits.get(1..bits.len()) else {
+                panic!("Cannot get bits after first for BER byte")
             };
+            let long_length = remainder.load_be();
+            // Read all of the length bytes determined from the first length byte
+            let mut len_bytes = vec![0; long_length];
+            buf.read(&mut len_bytes).expect("Can't read from bytes");
 
-            let bits = new_byte.view_bits::<Msb0>();
-            let Some(msb) = bits.get(0) else {
-                panic!("Cannot get the first bit from the byte array");
-            };
-
-            // If there is a 1 then we need to parse this byte and then read the next.
-            if msb == true {
-                let Some(remainder) =  bits.get(1..bits.len()) else {
-                    panic!("Cannot get bits after first for BER byte")
-                };
-
-                bytes.extend(remainder);
-                continue
-            }
-            // If there is a 0 then this is the last byte.
-            bytes.extend(bits);
-            return bytes.load_be()
+            return len_bytes.view_bits::<Msb0>().load_be();
         }
+
+        return bits.load_be();
     }
 
     fn get_value(buf: &mut Cursor<Box<[u8]>>, tag: usize, length: usize) -> Result<Klv, Errors> {
@@ -92,7 +87,7 @@ impl KlvPacket {
         
         #[cfg(feature = "search")]
         {
-            let search = TwoWaySearcher::new(UAS_LOCAL_SET_UNIVERSAL_LABEL);
+            let search = TwoWaySearcher::new(&UAS_LOCAL_SET_UNIVERSAL_LABEL);
             start_index = match search.search_in(&bytes) {
                 Some(idx) => idx,
                 None => return Err(Errors::NoKLVPacket),
@@ -131,6 +126,8 @@ impl KlvPacket {
 
         let mut fields = Vec::new();
 
+        println!("{:02X?}", bytes);
+
         while buffer.position() < (klv_length + UAS_LOCAL_SET_UNIVERSAL_LABEL.len()) as u64 {
             let tag = Self::get_tag(&mut buffer);
             // If the tag is larger than the known max tag ID then we know it's not supported
@@ -139,6 +136,13 @@ impl KlvPacket {
             }
 
             let length = Self::get_length(&mut buffer);
+
+            // Continue on to the next field if the length of this one is 0
+            if length == 0 {
+                #[cfg(feature="log")]
+                debug!("Length of tag [{}] is 0", tag);
+                continue
+            }
 
             let value = Self::get_value(&mut buffer, tag, length)?;
             fields.push(value);
@@ -155,7 +159,7 @@ impl KlvPacket {
 
         if packet_checksum != calculated_checksum {
             #[cfg(feature="log")]
-            trace!("Checksum for packet [{}] vs calculated checksum [{}]", packet_checksum, calculated_checksum);
+            debug!("Checksum for packet [{}] vs calculated checksum [{}]", packet_checksum, calculated_checksum);
             return Err(Errors::InvalidChecksum)
         }
 
@@ -163,11 +167,11 @@ impl KlvPacket {
     }
     
     pub fn get_id(&self, tag: usize) -> Option<Klv> {
-        self.fields.iter().find(|field_tag| field_tag.tag() as usize == tag).cloned()
+        self.fields.iter().find(|field_tag| tag == field_tag.tag().into()).cloned()
     }
 
     pub fn get(&self, tag: Tag) -> Option<Klv> {
-        self.get_id(tag as usize)
+        self.get_id(tag.into())
     }
 
     /// Return the checksum of this UAS LS KLV packet
@@ -197,7 +201,7 @@ impl KlvPacket {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, vec};
+    use std::{io::Cursor, sync::Arc, vec};
 
     use itertools::chain;
     use test_case::test_case;
@@ -227,5 +231,14 @@ mod tests {
         assert_eq!(packet.checksum(), checksum, "Checksum is incorrect");
         assert_eq!(packet.precision_time_stamp(), 4822678189205111, "Precision Time Stamp is incorrect");
         assert_eq!(packet.mission_id(), mission_id)
+    }
+
+    #[test_case(Box::new([0x71, 0xF1, 0x00]), 113; "Short form")]
+    #[test_case(Box::new([0x81, 0xF1, 0x00]), 241; "Long-Form: One byte")]
+    #[test_case(Box::new([0x83, 0xF1, 0xFF, 0xF1]), 15859697; "Long-Form Three bytes")]
+    fn get_ber_value(bytes: Box<[u8]>, correct_length: usize) {
+        let mut test_bytes = Cursor::new(bytes.clone());
+        let length = KlvPacket::get_ber_value(&mut test_bytes);
+        assert_eq!(length, correct_length, "Failed to BER")
     }
 }

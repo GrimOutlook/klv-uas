@@ -1,11 +1,12 @@
 //! Information from this page was gathered from page 32 of the MISB ST 0601.19 document that was
 //! published 2023-March-02.
+use core::fmt;
 use std::sync::Arc;
 
 use bitvec::{field::BitField, order::Msb0, view::BitView};
 use strum_macros::EnumDiscriminants;
 
-use crate::{klv_packet::KlvPacket, Errors};
+use crate::{klv_packet::KlvPacket, tag::Tag, Errors};
 
 /// The value types that are supported to be stored in a UAS Datalink KLV packet.
 /// The first value is always the tag number. The second value is the value.
@@ -13,6 +14,10 @@ use crate::{klv_packet::KlvPacket, Errors};
 #[strum_discriminants(vis(pub))]
 #[strum_discriminants(name(KlvValueType))]
 pub enum KlvValue {
+    /// This KLV tag is unknown.
+    Unknown,
+    /// This KLV tag has been deprecated.
+    Deprecated,
     /// Variable length, 2's complement signed integer
     /// 
     /// Storing this as an i64 for now but this may need to be some form of BigInt or whatever that
@@ -47,7 +52,7 @@ pub enum KlvValue {
     /// One or more bytes which represent a binary value
     /// 
     /// Typically used for bit-flags.
-    Byte(u8),
+    Byte(Box<[u8]>),
     /// Defined length pack
     /// 
     /// TODO: Look into what this enum's variant should be
@@ -71,19 +76,54 @@ pub enum KlvValue {
 
 impl KlvValue {
     pub fn from_bytes(tag: Tag, bytes: &Box<[u8]>) -> Result<KlvValue, Errors> {
-        let value = match tag {
-            Tag::Checksum |
-            Tag::PlatformHeadingAngle => Self::uint16(bytes),
-            Tag::PrecisionTimeStamp => Self::uint64(bytes),
-            Tag::MissionID => Self::utf8(bytes),
-            _ => return Err(Errors::UnsupportedTag(tag as usize))
+        let t = tag.tag_type();
+        let value = match t {
+            KlvValueType::Int => Self::int(bytes),
+            KlvValueType::Int8 => Self::int8(bytes),
+            KlvValueType::Int16 => Self::int16(bytes),
+            KlvValueType::Int32 => Self::int32(bytes),
+            KlvValueType::Uint => Self::uint(bytes),
+            KlvValueType::Uint8 => Self::uint8(bytes),
+            KlvValueType::Uint16 => Self::uint16(bytes),
+            KlvValueType::Uint32 => Self::uint32(bytes),
+            KlvValueType::Uint64 => Self::uint64(bytes),
+            KlvValueType::Utf8 => Self::utf8(bytes),
+            _ => return Err(Errors::UnsupportedTag(tag.into()))
         };
 
         Ok(value)
     }
 
+    fn int(bytes: &Box<[u8]>) -> KlvValue {
+        KlvValue::Int(bytes.view_bits::<Msb0>().load_be())
+    }
+
+    fn int8(bytes: &Box<[u8]>) -> KlvValue {
+        KlvValue::Int8(bytes.view_bits::<Msb0>().load_be())
+    }
+
+    fn int16(bytes: &Box<[u8]>) -> KlvValue {
+        KlvValue::Int16(bytes.view_bits::<Msb0>().load_be())
+    }
+
+    fn int32(bytes: &Box<[u8]>) -> KlvValue {
+        KlvValue::Int32(bytes.view_bits::<Msb0>().load_be())
+    }
+
+    fn uint(bytes: &Box<[u8]>) -> KlvValue {
+        KlvValue::Uint(bytes.view_bits::<Msb0>().load_be())
+    }
+
+    fn uint8(bytes: &Box<[u8]>) -> KlvValue {
+        KlvValue::Uint8(bytes.view_bits::<Msb0>().load_be())
+    }
+
     fn uint16(bytes: &Box<[u8]>) -> KlvValue {
         KlvValue::Uint16(bytes.view_bits::<Msb0>().load_be())
+    }
+
+    fn uint32(bytes: &Box<[u8]>) -> KlvValue {
+        KlvValue::Uint32(bytes.view_bits::<Msb0>().load_be())
     }
 
     fn uint64(bytes: &Box<[u8]>) -> KlvValue {
@@ -91,6 +131,7 @@ impl KlvValue {
     }
 
     fn utf8(bytes: &Box<[u8]>) -> KlvValue {
-        return KlvValue::Utf8(std::str::from_utf8(bytes).expect("Cannot create UTF8 string from bytes").into());
+        return KlvValue::Utf8(std::str::from_utf8(bytes)
+                .expect(&format!("Cannot create UTF8 string from bytes {:02X?}", bytes)).into());
     }
 }
