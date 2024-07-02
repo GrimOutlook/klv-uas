@@ -71,7 +71,7 @@ impl KlvPacket {
     // This function calculated the checksum of the packet buffer passed in. This should be the
     // entire packet, starting with the UAS LS Key and ending with the calculated checksum.
     fn calculate_checksum(buf: &[u8]) -> u16 {
-        let mut bcc: u16 = 1;
+        let mut bcc: u16 = 0;
         buf[..buf.len() - 2].iter().enumerate().for_each(|(idx, byte)| bcc = bcc.wrapping_add((*byte as u16) << (8 * ((idx + 1) % 2)) as u16));
         return bcc;
     }
@@ -156,7 +156,7 @@ impl KlvPacket {
 
         let packet_checksum = packet.checksum();
 
-        let checksum_bytes_length = klv_packet_end - 2;
+        let checksum_bytes_length = klv_packet_end;
         let calculated_checksum = Self::calculate_checksum(bytes.get(start_index..checksum_bytes_length).unwrap());
 
         if packet_checksum != calculated_checksum {
