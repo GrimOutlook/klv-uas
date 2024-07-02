@@ -7,12 +7,7 @@ use crate::{klv::Klv, klv_value::KlvValue, tag::Tag, Errors};
 use memmem::{Searcher, TwoWaySearcher};
 
 #[cfg(feature = "log")]
-#[cfg(not(test))]
 use log::{debug, trace};
-
-#[cfg(feature = "log")]
-#[cfg(test)]
-use std::{println as trace, println as warn, println as debug}; 
 
 pub const UAS_LOCAL_SET_UNIVERSAL_LABEL: [u8; 16] = [
     0x06, 0x0E, 0x2B, 0x34,
@@ -104,6 +99,9 @@ impl KlvPacket {
             start_index = 0;
         }
 
+        #[cfg(feature="log")]
+        trace!("Parsing KLV packet: {:02X?}", bytes);
+
         // This is the position that the length bytes for the entire packet start at.
         let length_position = start_index + UAS_LOCAL_SET_UNIVERSAL_LABEL.len();
 
@@ -121,14 +119,15 @@ impl KlvPacket {
         // grabbing the bytes that are used to calculate the checksum
         let length_length = buffer.position() as usize - length_position;
 
+        // Index in the data where KLV data ends
+        let klv_packet_end = length_position + length_length + klv_length;
+
         // Get the number of Tag variants that are currently supported.
         let max_tag_id = Tag::COUNT;
 
         let mut fields = Vec::new();
 
-        println!("{:02X?}", bytes);
-
-        while buffer.position() < (klv_length + UAS_LOCAL_SET_UNIVERSAL_LABEL.len()) as u64 {
+        while buffer.position() < klv_packet_end as u64 {
             let tag = Self::get_tag(&mut buffer);
             // If the tag is larger than the known max tag ID then we know it's not supported
             if tag > max_tag_id {
@@ -145,16 +144,19 @@ impl KlvPacket {
             }
 
             let value = Self::get_value(&mut buffer, tag, length)?;
+            
+            #[cfg(feature="log")]
+            trace!("Added tag to KLV packet: [{}]", Into::<&'static str>::into(value.tag()));
             fields.push(value);
         }
 
-        let packet = KlvPacket { fields };
+        println!("KLV packet has fields: {:?}", fields.iter().map(|i| i.tag().into()).collect::<Vec<&str>>());
 
-        println!("{:02X?}", bytes.get(klv_length-2..klv_length).unwrap());
+        let packet = KlvPacket { fields };
 
         let packet_checksum = packet.checksum();
 
-        let checksum_bytes_length = start_index + UAS_LOCAL_SET_UNIVERSAL_LABEL.len() + length_length+klv_length - 2;
+        let checksum_bytes_length = klv_packet_end - 2;
         let calculated_checksum = Self::calculate_checksum(bytes.get(start_index..checksum_bytes_length).unwrap());
 
         if packet_checksum != calculated_checksum {

@@ -1,10 +1,5 @@
 #[cfg(feature = "log")]
-#[cfg(not(test))]
 use log::{debug, trace};
-
-#[cfg(feature = "log")]
-#[cfg(test)]
-use std::{println as trace, println as warn, println as debug}; 
 
 use crate::{klv_value::KlvValue, tag::Tag, Errors};
 

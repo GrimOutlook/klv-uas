@@ -1,12 +1,14 @@
 //! Information from this page was gathered from page 32 of the MISB ST 0601.19 document that was
 //! published 2023-March-02.
-use core::fmt;
 use std::sync::Arc;
 
 use bitvec::{field::BitField, order::Msb0, view::BitView};
 use strum_macros::EnumDiscriminants;
 
 use crate::{klv_packet::KlvPacket, tag::Tag, Errors};
+
+#[cfg(feature = "log")]
+use log::warn;
 
 /// The value types that are supported to be stored in a UAS Datalink KLV packet.
 /// The first value is always the tag number. The second value is the value.
@@ -18,6 +20,8 @@ pub enum KlvValue {
     Unknown,
     /// This KLV tag has been deprecated.
     Deprecated,
+    /// This KLV value type has yet to be implemented.
+    Unimplemented,
     /// Variable length, 2's complement signed integer
     /// 
     /// Storing this as an i64 for now but this may need to be some form of BigInt or whatever that
@@ -78,16 +82,22 @@ impl KlvValue {
     pub fn from_bytes(tag: Tag, bytes: &Box<[u8]>) -> Result<KlvValue, Errors> {
         let t = tag.tag_type();
         let value = match t {
-            KlvValueType::Int => Self::int(bytes),
-            KlvValueType::Int8 => Self::int8(bytes),
-            KlvValueType::Int16 => Self::int16(bytes),
-            KlvValueType::Int32 => Self::int32(bytes),
-            KlvValueType::Uint => Self::uint(bytes),
-            KlvValueType::Uint8 => Self::uint8(bytes),
-            KlvValueType::Uint16 => Self::uint16(bytes),
-            KlvValueType::Uint32 => Self::uint32(bytes),
-            KlvValueType::Uint64 => Self::uint64(bytes),
-            KlvValueType::Utf8 => Self::utf8(bytes),
+            KlvValueType::Int       => Self::int(bytes),
+            KlvValueType::Int8      => Self::int8(bytes),
+            KlvValueType::Int16     => Self::int16(bytes),
+            KlvValueType::Int32     => Self::int32(bytes),
+            KlvValueType::Uint      => Self::uint(bytes),
+            KlvValueType::Uint8     => Self::uint8(bytes),
+            KlvValueType::Uint16    => Self::uint16(bytes),
+            KlvValueType::Uint32    => Self::uint32(bytes),
+            KlvValueType::Uint64    => Self::uint64(bytes),
+            KlvValueType::Utf8      => Self::utf8(bytes),
+            KlvValueType::IMAPB     => Self::imapb(bytes),
+            KlvValueType::Set       => Self::set(tag, bytes),
+            KlvValueType::Byte      => Self::byte(bytes),
+            KlvValueType::DLP       => Self::dlp(bytes),
+            KlvValueType::VLP       => Self::vlp(bytes),
+            KlvValueType::FLP       => Self::flp(bytes),
             _ => return Err(Errors::UnsupportedTag(tag.into()))
         };
 
@@ -133,5 +143,41 @@ impl KlvValue {
     fn utf8(bytes: &Box<[u8]>) -> KlvValue {
         return KlvValue::Utf8(std::str::from_utf8(bytes)
                 .expect(&format!("Cannot create UTF8 string from bytes {:02X?}", bytes)).into());
+    }
+
+    fn imapb(bytes: &Box<[u8]>) -> KlvValue {
+        Self::klv_unimplemented("IMAPB")
+    }
+
+    fn set(tag: Tag, bytes: &Box<[u8]>) -> KlvValue {
+        Self::klv_unimplemented("Set")
+    }
+
+    fn byte(bytes: &Box<[u8]>) -> KlvValue {
+        Self::klv_unimplemented("Byte")
+    }
+
+    fn dlp(bytes: &Box<[u8]>) -> KlvValue {
+        Self::klv_unimplemented("DLP")
+    }
+
+    fn vlp(bytes: &Box<[u8]>) -> KlvValue {
+        Self::klv_unimplemented("VLP")
+    }
+
+    fn flp(bytes: &Box<[u8]>) -> KlvValue {
+        Self::klv_unimplemented("FLP")
+    }
+
+    fn klv_unimplemented(tag_type: &str) -> KlvValue {
+        #[cfg(not(feature = "ignore_incomplete"))]
+        {
+            todo!("Implement converting KLV bytes to {}", tag_type);
+        }
+        #[cfg(feature = "ignore_incomplete")]
+        {
+            warn!("Converting KLV bytes to {} is not yet supported", tag_type);
+            KlvValue::Unimplemented
+        }
     }
 }

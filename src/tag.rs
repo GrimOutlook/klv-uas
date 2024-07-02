@@ -8,8 +8,6 @@
 //! duplication.
 //! https://stackoverflow.com/questions/36928569/how-can-i-create-enums-with-constant-values-in-rust
 
-
-
 use crate::klv_value::KlvValueType;
 
 /// Reference summary section of the [`KlvValue`] page for more in-depth reasoning but this macro
@@ -25,18 +23,18 @@ macro_rules! def_tags {
         }
     ) => {
         $(#[$attr])*
-        $vis struct $name($ret_typ, $ret_id);
+        $vis struct $name($ret_typ, $ret_id, &'static str);
 
         // We allow non upper case globals here because we are using these constants as if they are
         // Enums.
         #[allow(non_upper_case_globals)]
         impl $name {
             $(
-                pub const $variant: Self = Self($typ, $id);
+                pub const $variant: Self = Self($typ, $id, stringify!($variant));
             )+
 
             pub const VARIANTS: &'static [Self] = &[$(Self::$variant),+];
-            pub const COUNT: usize = [$(Self::$variant),+].len();
+            pub const COUNT: usize = Self::VARIANTS.len();
 
             pub const fn tag_type(self) -> $ret_typ {
                 self.0
@@ -44,6 +42,16 @@ macro_rules! def_tags {
 
             pub const fn id(self) -> $ret_id {
                 self.1
+            }
+
+            pub const fn string(self) -> &'static str {
+                self.2
+            }
+        }
+
+        impl Into<&'static str> for $name {
+            fn into(self) -> &'static str {
+                self.string()
             }
         }
 
@@ -73,7 +81,7 @@ macro_rules! def_tags {
 def_tags! {
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub Tag => KlvValueType, usize {
-        Unknown                                     => KlvValueType::Unknown,        0;
+        Unknown                                     => KlvValueType::Unknown,       0;
         Checksum                                    => KlvValueType::Uint16,        1;
         PrecisionTimeStamp                          => KlvValueType::Uint64,        2;
         MissionID                                   => KlvValueType::Utf8,          3;

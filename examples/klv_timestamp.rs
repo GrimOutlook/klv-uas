@@ -15,14 +15,15 @@ fn main() {
 
     reader.add_tracked_pid(258);
 
-    let klv: KlvPacket;
+    let klv;
     loop {
         // Get a payload from the reader. The `unchecked` in the method name means that if an error
         // is hit then `Some(payload)` is returned rather than `Ok(Some(payload))` in order to reduce
         // `.unwrap()` (or other) calls.
-        let payload = reader.next_payload_unchecked()
-                       // Assume that a payload was found in the file and was successfully parsed.
-                       .expect("No valid payload found");
+        let payload = match reader.next_payload() {
+            Ok(payload) => payload.expect("Payload is None"),
+            Err(e) => panic!("Could not get payload due to error: {}", e),
+        };
 
         // Try to parse a UAS LS KLV packet from the payload that was found. This will likely only
         // work if you have the `search` feature enabled as the UAS LS KLV record does not start at
