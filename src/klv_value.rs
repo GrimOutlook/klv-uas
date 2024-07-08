@@ -176,6 +176,7 @@ impl KlvValue {
         }
         #[cfg(feature = "ignore_incomplete")]
         {
+            #[cfg(feature = "log")]
             warn!("Converting KLV bytes to {} is not yet supported", tag_type);
             KlvValue::Unimplemented
         }

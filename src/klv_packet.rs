@@ -72,7 +72,7 @@ impl KlvPacket {
     // entire packet, starting with the UAS LS Key and ending with the calculated checksum.
     fn calculate_checksum(buf: &[u8]) -> u16 {
         let mut bcc: u16 = 0;
-        buf[..buf.len() - 2].iter().enumerate().for_each(|(idx, byte)| bcc = bcc.wrapping_add((*byte as u16) << (8 * ((idx + 1) % 2)) as u16));
+        buf[..buf.len()].iter().enumerate().for_each(|(idx, byte)| bcc = bcc.wrapping_add((*byte as u16) << (8 * ((idx + 1) % 2)) as u16));
         return bcc;
     }
 
@@ -100,10 +100,16 @@ impl KlvPacket {
         }
 
         #[cfg(feature="log")]
-        trace!("Parsing KLV packet: {:02X?}", bytes);
+        {
+            trace!("Parsing KLV packet: {:02X?}", bytes);
+            trace!("Start index [{}]", start_index);
+        }
 
         // This is the position that the length bytes for the entire packet start at.
         let length_position = start_index + UAS_LOCAL_SET_UNIVERSAL_LABEL.len();
+
+        #[cfg(feature="log")]
+        trace!("Length position [{}]", length_position);
 
         // Create a cursor for the bytes so we can keep track of what has been read without a bunch
         // of magic numbers.
@@ -117,10 +123,16 @@ impl KlvPacket {
 
         // Need to keep track of how many bytes make up the length field as this is used when
         // grabbing the bytes that are used to calculate the checksum
-        let length_length = buffer.position() as usize - length_position;
+        let length_field_length = buffer.position() as usize - length_position;
+
+        #[cfg(feature="log")]
+        trace!("Length field length [{}]", length_field_length);
 
         // Index in the data where KLV data ends
-        let klv_packet_end = length_position + length_length + klv_length;
+        let klv_packet_end = length_position + length_field_length + klv_length;
+
+        #[cfg(feature="log")]
+        trace!("KLV packet end [{}]", klv_packet_end);
 
         // Get the number of Tag variants that are currently supported.
         let max_tag_id = Tag::COUNT;
@@ -156,7 +168,7 @@ impl KlvPacket {
 
         let packet_checksum = packet.checksum();
 
-        let checksum_bytes_length = klv_packet_end;
+        let checksum_bytes_length = klv_packet_end - 2;
         let calculated_checksum = Self::calculate_checksum(bytes.get(start_index..checksum_bytes_length).unwrap());
 
         if packet_checksum != calculated_checksum {
