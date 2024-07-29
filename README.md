@@ -4,7 +4,7 @@
 [![docs.rs](https://img.shields.io/docsrs/klv-uas)](https://docs.rs/klv-uas)
 [![Crates.io Version](https://img.shields.io/crates/v/klv-uas)](https://crates.io/crates/klv-uas/versions)
 [![GitHub Repo stars](https://img.shields.io/github/stars/GrimOutlook/klv-uas)](https://github.com/GrimOutlook/klv-uas)
-[![Crates.io License](https://img.shields.io/crates/l/klv-uas)](../LICENSE)
+[![Crates.io License](https://img.shields.io/crates/l/klv-uas)](LICENSE)
 
 A library for extracting KLV data from transport stream packet payloads. This library is not
 indented to be used for injecting KLV data into video streams.
