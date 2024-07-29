@@ -1,6 +1,6 @@
 [package]
 name = "klv-uas"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Dominic Grimaldi <dominic.j.grimaldi@gmail.com>"]
 edition = "2021"
 description = "A simple library for parsing UAS KLV data from raw data."
