@@ -162,8 +162,6 @@ impl KlvPacket {
             fields.push(value);
         }
 
-        println!("KLV packet has fields: {:?}", fields.iter().map(|i| i.tag().into()).collect::<Vec<&str>>());
-
         let packet = KlvPacket { fields };
 
         let packet_checksum = packet.checksum();

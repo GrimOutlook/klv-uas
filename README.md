@@ -9,6 +9,11 @@
 A library for extracting KLV data from transport stream packet payloads. This library is not
 indented to be used for injecting KLV data into video streams.
 
+## WARNING
+
+Currently, you must enable the feature `ignore_incomplete`. I want the user to understand that several of the datatypes
+cannot be parsed correctly quite yet, so they must manually allow this.
+
 ## Example
 
 ```rust
@@ -47,7 +52,6 @@ fn main() {
     klv = match KlvPacket::from_bytes(payload) {
       Ok(klv) => klv,
       Err(e) => {
-        println!("Error {:?}", e);
         continue
       },
     };

@@ -33,7 +33,6 @@ fn main() {
         klv = match KlvPacket::from_bytes(payload) {
             Ok(klv) => klv,
             Err(e) => {
-                println!("Error {:?}", e);
                 continue
             },
         };
