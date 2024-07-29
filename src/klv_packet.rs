@@ -238,7 +238,7 @@ mod tests {
         return packet_from_value(vec![0x03, 0x02, b'I', b'D']) // Mission ID is 'ID'.
     }
 
-    #[test_case(packet_1, 46955, Some("ID".into()))]
+    #[test_case(packet_1, 47467, Some("ID".into()))]
     fn from_bytes(packet: fn () -> Vec<u8>, checksum: u16, mission_id: Option<Arc<str>>) {
         let bytes = packet();
         let packet = KlvPacket::from_bytes(bytes.into()).unwrap();

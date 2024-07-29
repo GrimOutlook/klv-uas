@@ -4,6 +4,7 @@ use std::env;
 use klv_uas::tag::Tag;
 use ts_analyzer::reader::TSReader;
 use std::fs::File;
+use std::io::BufReader;
 use klv_uas::klv_packet::KlvPacket;
 
 fn main() {
@@ -11,7 +12,8 @@ fn main() {
     let filename = env::var("TEST_FILE").expect("Environment variable not set");
 
     let f = File::open(filename.clone()).expect("Couldn't open file");
-    let mut reader = TSReader::new(f).expect("Transport Stream file contains no SYNC bytes.");
+    let buf_reader = BufReader::new(f);
+    let mut reader = TSReader::new(&*filename, buf_reader).expect("Transport Stream file contains no SYNC bytes.");
 
     reader.add_tracked_pid(258);
 
@@ -21,7 +23,7 @@ fn main() {
         // is hit then `Some(payload)` is returned rather than `Ok(Some(payload))` in order to reduce
         // `.unwrap()` (or other) calls.
         let payload = match reader.next_payload() {
-            Ok(payload) => payload.expect("Payload is None"),
+            Ok(payload) => payload.expect("No payloads found in reader"),
             Err(e) => panic!("Could not get payload due to error: {}", e),
         };
 

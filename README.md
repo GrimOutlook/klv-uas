@@ -15,42 +15,47 @@ indented to be used for injecting KLV data into video streams.
 extern crate klv_uas;
 
 use std::env;
+use klv_uas::tag::Tag;
 use ts_analyzer::reader::TSReader;
 use std::fs::File;
 use std::io::BufReader;
 use klv_uas::klv_packet::KlvPacket;
 
 fn main() {
-    env_logger::init();
-    let filename = env::var("TEST_FILE").expect("Environment variable not set");
+  env_logger::init();
+  let filename = env::var("TEST_FILE").expect("Environment variable not set");
 
-    let f = File::open(filename.clone()).expect("Couldn't open file");
-    let mut reader = TSReader::new(f).expect("Transport Stream file contains no SYNC bytes.");
+  let f = File::open(filename.clone()).expect("Couldn't open file");
+  let buf_reader = BufReader::new(f);
+  let mut reader = TSReader::new(&*filename, buf_reader).expect("Transport Stream file contains no SYNC bytes.");
 
-    let klv: KlvPacket;
-    loop {
-        // Get a payload from the reader. The `unchecked` in the method name means that if an error
-        // is hit then `Some(payload)` is returned rather than `Ok(Some(payload))` in order to reduce
-        // `.unwrap()` (or other) calls.
-        let payload = reader.next_payload_unchecked()
-                       // Assume that a payload was found in the file and was successfully parsed.
-                       .expect("No valid payload found");
+  reader.add_tracked_pid(258);
 
-        // Try to parse a UAS LS KLV packet from the payload that was found. This will likely only
-        // work if you have the `search` feature enabled as the UAS LS KLV record does not start at
-        // the first byte of the payload.
-        klv = match KlvPacket::from_bytes(payload) {
-            Ok(klv) => klv,
-            Err(e) => {
-                println!("Error {:?}", e);
-                continue
-            },
-        };
+  let klv;
+  loop {
+    // Get a payload from the reader. The `unchecked` in the method name means that if an error
+    // is hit then `Some(payload)` is returned rather than `Ok(Some(payload))` in order to reduce
+    // `.unwrap()` (or other) calls.
+    let payload = match reader.next_payload() {
+      Ok(payload) => payload.expect("Payload is None"),
+      Err(e) => panic!("Could not get payload due to error: {}", e),
+    };
 
-        break
-    }
+    // Try to parse a UAS LS KLV packet from the payload that was found. This will likely only
+    // work if you have the `search` feature enabled as the UAS LS KLV record does not start at
+    // the first byte of the payload.
+    klv = match KlvPacket::from_bytes(payload) {
+      Ok(klv) => klv,
+      Err(e) => {
+        println!("Error {:?}", e);
+        continue
+      },
+    };
 
-    println!("Timestamp of KLV packet: {}", klv.precision_time_stamp());
+    break
+  }
+
+  println!("Timestamp of KLV packet: {:?}", klv.get(Tag::PrecisionTimeStamp).unwrap());
 }
 ```
 
@@ -73,6 +78,9 @@ fn main() {
   - [ ] FLP
   - [ ] Set
   - [x] UTF8
+- Support converting all types of KLV value to actual values.
+  - Such as converting KLV Tag 5 (Platform Heading Angle) to the actual floating point angle represented by the integer
+value stored in the KLV value.
 
 ### Testing
 
