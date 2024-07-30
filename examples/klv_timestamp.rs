@@ -32,7 +32,7 @@ fn main() {
         // the first byte of the payload.
         klv = match KlvPacket::from_bytes(payload) {
             Ok(klv) => klv,
-            Err(e) => {
+            Err(_) => {
                 continue
             },
         };

@@ -3,19 +3,19 @@ use clap::Parser;
 use itertools::Itertools;
 use klv_uas::{klv_packet::KlvPacket, klv_value::KlvValue, tag::Tag};
 use ts_analyzer::reader::TSReader;
-use std::{env, fs::{self, File}, io::BufReader, process::ExitCode};
+use std::{fs::{self, File}, io::BufReader, process::ExitCode};
 use log::{debug, error, info};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
+    /// Setup the verbose flag
+    #[command(flatten)]
+    verbose: clap_verbosity_flag::Verbosity,
+
     /// Get what directory to check for
     #[arg(short, long)]
     directory: String,
-
-    /// Logs above this level should be displayed
-    #[arg(short, long, default_value="INFO")]
-    log_level: String,
 
     /// PID to track. If no PID is provided all PIDs are tracked.
     #[arg(short, long)]
@@ -27,12 +27,11 @@ fn main() -> ExitCode {
     let args = Args::parse();
     let directory = &args.directory;
     let pid = &args.pid;
-
+    
     // Initialize the logger
-    if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", args.log_level)
-    }
-    env_logger::init();
+    env_logger::Builder::new()
+        .filter_level(args.verbose.log_level_filter())
+        .init();
 
     info!("Starting laser video sorter");
 
