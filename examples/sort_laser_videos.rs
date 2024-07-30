@@ -43,29 +43,15 @@ fn main() -> ExitCode {
 
     // Create a folder to store laser video in
     let laser_folder = &format!("{}/LASER_VIDS", directory);
-    debug!("Checking for laser video directory");
-    if fs::metadata(laser_folder).is_ok() {
-        debug!("Laser videos directory already exists") 
-    } else {
-        if ! fs::create_dir(laser_folder).is_ok() {
-            eprintln!("Cannot create directory to sort laser videos into");
-            return ExitCode::from(2);
-        }
-        debug!("Created laser directory [{}]", laser_folder);
-    }
-
-    // Create folder to store non-laser videos in
+    if let Err(e) = create_subdirectory(laser_folder) {
+        return e
+    };
+    
+    // Create a folder to store non-laser video in
     let non_laser_folder = &format!("{}/NON_LASER_VIDS", directory);
-    debug!("Checking for non-laser video directory");
-    if fs::metadata(non_laser_folder).is_ok() {
-        debug!("Non-laser videos directory already exists") 
-    } else {
-        if ! fs::create_dir(non_laser_folder).is_ok() {
-            eprintln!("Cannot create directory to sort non-laser videos into");
-            return ExitCode::from(2);
-        }
-        debug!("Created non laser directory [{}]", non_laser_folder);
-    }
+    if let Err(e) = create_subdirectory(non_laser_folder) {
+        return e
+    };
 
     // Get all of the `.ts` files in the given directory
     let ts_files = fs::read_dir(directory).unwrap().into_iter()
@@ -157,4 +143,20 @@ fn main() -> ExitCode {
     }
 
     return ExitCode::from(0);
+}
+
+fn create_subdirectory(dir: &str) -> Result<(), ExitCode> {
+    // Create folder to store non-laser videos in
+    debug!("Checking for non-laser video directory");
+    if fs::metadata(dir).is_ok() {
+        debug!("Directory [{}] already exists", dir) 
+    } else {
+        if ! fs::create_dir(dir).is_ok() {
+            eprintln!("Cannot create directory [{}]", dir);
+            return Err(ExitCode::from(2));
+        }
+        debug!("Created directory [{}]", dir);
+    }
+
+    Ok(())
 }
