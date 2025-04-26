@@ -17,28 +17,32 @@ fn main() {
 
     reader.add_tracked_pid(258);
 
-    let klv;
     loop {
-        // Get a payload from the reader. The `unchecked` in the method name means that if an error
-        // is hit then `Some(payload)` is returned rather than `Ok(Some(payload))` in order to reduce
-        // `.unwrap()` (or other) calls.
-        let payload = match reader.next_payload() {
-            Ok(payload) => payload.expect("No payloads found in reader"),
-            Err(e) => panic!("Could not get payload due to error: {}", e),
+        // Get the next transport stream payload in the file.
+        let next_payload = match reader.next_payload() {
+            Ok(next_payload) => next_payload,
+            Err(e) => {
+                eprintln!("Could not get payload due to error: {e}");
+                break
+            }
+        };
+
+        // Verify that payload data was actually found. If none was found, we have reached the end
+        // of the file.
+        let Some(payload) = next_payload else {
+            println!("Finished reading {filename}");
+            break
         };
 
         // Try to parse a UAS LS KLV packet from the payload that was found. This will likely only
         // work if you have the `search` feature enabled as the UAS LS KLV record does not start at
         // the first byte of the payload.
-        klv = match KlvPacket::from_bytes(payload) {
+        let klv = match KlvPacket::from_bytes(payload) {
             Ok(klv) => klv,
             Err(_) => {
                 continue
             },
         };
-
-        break
+        println!("Timestamp of KLV packet: {:?}", klv.get(Tag::PrecisionTimeStamp).unwrap());
     }
-
-    println!("Timestamp of KLV packet: {:?}", klv.get(Tag::PrecisionTimeStamp).unwrap());
 }
