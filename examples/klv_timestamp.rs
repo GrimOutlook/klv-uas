@@ -1,11 +1,12 @@
 extern crate klv_uas;
 
 use std::env;
-use klv_uas::tag::Tag;
-use ts_analyzer::reader::TSReader;
 use std::fs::File;
 use std::io::BufReader;
+
 use klv_uas::klv_packet::KlvPacket;
+use klv_uas::tag::Tag;
+use ts_analyzer::reader::TsReader;
 
 fn main() {
     env_logger::init();
@@ -13,32 +14,36 @@ fn main() {
 
     let f = File::open(filename.clone()).expect("Couldn't open file");
     let buf_reader = BufReader::new(f);
-    let mut reader = TSReader::new(&*filename, buf_reader).expect("Transport Stream file contains no SYNC bytes.");
+    let mut reader = TsReader::new(buf_reader)
+        .expect("Transport Stream file contains no SYNC bytes.");
 
     reader.add_tracked_pid(258);
 
     let klv;
     loop {
-        // Get a payload from the reader. The `unchecked` in the method name means that if an error
-        // is hit then `Some(payload)` is returned rather than `Ok(Some(payload))` in order to reduce
+        // Get a payload from the reader. The `unchecked` in the method name
+        // means that if an error is hit then `Some(payload)` is
+        // returned rather than `Ok(Some(payload))` in order to reduce
         // `.unwrap()` (or other) calls.
         let payload = match reader.next_payload() {
             Ok(payload) => payload.expect("No payloads found in reader"),
             Err(e) => panic!("Could not get payload due to error: {}", e),
         };
 
-        // Try to parse a UAS LS KLV packet from the payload that was found. This will likely only
-        // work if you have the `search` feature enabled as the UAS LS KLV record does not start at
+        // Try to parse a UAS LS KLV packet from the payload that was found.
+        // This will likely only work if you have the `search` feature
+        // enabled as the UAS LS KLV record does not start at
         // the first byte of the payload.
-        klv = match KlvPacket::from_bytes(payload) {
-            Ok(klv) => klv,
-            Err(_) => {
-                continue
-            },
+        klv = match KlvPacket::from_bytes(payload).unwrap() {
+            Some(klv) => klv,
+            None => continue,
         };
 
-        break
+        break;
     }
 
-    println!("Timestamp of KLV packet: {:?}", klv.get(Tag::PrecisionTimeStamp).unwrap());
+    println!(
+        "Timestamp of KLV packet: {:?}",
+        klv.get(Tag::PrecisionTimeStamp).unwrap()
+    );
 }

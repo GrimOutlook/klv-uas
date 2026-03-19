@@ -5,14 +5,16 @@ use std::sync::Arc;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use bitvec::view::BitView;
-#[cfg(feature = "log")]
-use log::debug;
-#[cfg(feature = "log")]
-use log::trace;
 #[cfg(feature = "search")]
 use memmem::Searcher;
 #[cfg(feature = "search")]
 use memmem::TwoWaySearcher;
+#[cfg(feature = "tracing")]
+use tracing::debug;
+#[cfg(feature = "tracing")]
+use tracing::info;
+#[cfg(feature = "tracing")]
+use tracing::trace;
 
 use crate::ErrorKind;
 use crate::klv::Klv;
@@ -34,13 +36,13 @@ impl KlvPacket {
     /// length values.
     ///
     /// The first byte in the `bytes` slice should be the start of the next tag.
-    fn get_tag(buf: &mut Cursor<Box<[u8]>>) -> usize {
+    fn get_tag(buf: &mut Cursor<&[u8]>) -> usize {
         Self::get_ber_value(buf)
     }
 
     /// Get the length of a field. This handles both non-BER and BER length
     /// values.
-    fn get_length(buf: &mut Cursor<Box<[u8]>>) -> usize {
+    fn get_length(buf: &mut Cursor<&[u8]>) -> usize {
         Self::get_ber_value(buf)
     }
 
@@ -48,7 +50,7 @@ impl KlvPacket {
     ///
     /// The first byte in the `bytes` slice should be the start of the BER
     /// sequence.
-    fn get_ber_value(buf: &mut Cursor<Box<[u8]>>) -> usize {
+    fn get_ber_value(buf: &mut Cursor<&[u8]>) -> usize {
         // Buffer for reading bytes
         let mut new_byte: [u8; 1] = [0];
         // Get the first byte so we can evaluate if we need more
@@ -76,7 +78,7 @@ impl KlvPacket {
     }
 
     fn get_value(
-        buf: &mut Cursor<Box<[u8]>>,
+        buf: &mut Cursor<&[u8]>,
         tag: usize,
         length: usize,
     ) -> Result<Klv, ErrorKind> {
@@ -99,7 +101,7 @@ impl KlvPacket {
     }
 
     /// Parse the bytes into a usable KLV packet
-    pub fn from_bytes(bytes: Box<[u8]>) -> Result<KlvPacket, ErrorKind> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Option<KlvPacket>, ErrorKind> {
         let start_index: usize;
 
         #[cfg(feature = "search")]
@@ -107,7 +109,7 @@ impl KlvPacket {
             let search = TwoWaySearcher::new(&UAS_LOCAL_SET_UNIVERSAL_LABEL);
             start_index = match search.search_in(&bytes) {
                 Some(idx) => idx,
-                None => return Err(ErrorKind::NoKLVPacket),
+                None => return Ok(None),
             };
         }
         #[cfg(not(feature = "search"))]
@@ -116,13 +118,13 @@ impl KlvPacket {
             // UAS LS Label.
             let test_bytes = &bytes[0..UAS_LOCAL_SET_UNIVERSAL_LABEL.len()];
             if !test_bytes.iter().eq(UAS_LOCAL_SET_UNIVERSAL_LABEL.iter()) {
-                return Err(ErrorKind::NoKLVPacket);
+                return Ok(None);
             }
 
             start_index = 0;
         }
 
-        #[cfg(feature = "log")]
+        #[cfg(feature = "tracing")]
         {
             trace!("Parsing KLV packet: {:02X?}", bytes);
             trace!("Start index [{}]", start_index);
@@ -132,17 +134,17 @@ impl KlvPacket {
         // start at.
         let length_position = start_index + UAS_LOCAL_SET_UNIVERSAL_LABEL.len();
 
-        #[cfg(feature = "log")]
+        #[cfg(feature = "tracing")]
         trace!("Length position [{}]", length_position);
 
         // Create a cursor for the bytes so we can keep track of what has been
         // read without a bunch of magic numbers.
-        let mut buffer = Cursor::new(bytes.clone());
+        let mut buffer = Cursor::new(bytes);
         buffer.set_position(length_position as u64);
 
         // Get the length of the UAS Datalink Packet Value field.
         let klv_length = Self::get_length(&mut buffer);
-        #[cfg(feature = "log")]
+        #[cfg(feature = "tracing")]
         trace!("Length of packet [{}]", klv_length);
 
         // Need to keep track of how many bytes make up the length field as this
@@ -150,13 +152,13 @@ impl KlvPacket {
         // the checksum
         let length_field_length = buffer.position() as usize - length_position;
 
-        #[cfg(feature = "log")]
+        #[cfg(feature = "tracing")]
         trace!("Length field length [{}]", length_field_length);
 
         // Index in the data where KLV data ends
         let klv_packet_end = length_position + length_field_length + klv_length;
 
-        #[cfg(feature = "log")]
+        #[cfg(feature = "tracing")]
         trace!("KLV packet end [{}]", klv_packet_end);
 
         // Get the number of Tag variants that are currently supported.
@@ -176,14 +178,14 @@ impl KlvPacket {
 
             // Continue on to the next field if the length of this one is 0
             if length == 0 {
-                #[cfg(feature = "log")]
+                #[cfg(feature = "tracing")]
                 debug!("Length of tag [{}] is 0", tag);
                 continue;
             }
 
             let value = Self::get_value(&mut buffer, tag, length)?;
 
-            #[cfg(feature = "log")]
+            #[cfg(feature = "tracing")]
             trace!(
                 "Added tag to KLV packet: [{}]",
                 Into::<&'static str>::into(value.tag())
@@ -201,7 +203,7 @@ impl KlvPacket {
         );
 
         if packet_checksum != calculated_checksum {
-            #[cfg(feature = "log")]
+            #[cfg(feature = "tracing")]
             debug!(
                 "Checksum for packet [{}] vs calculated checksum [{}]",
                 packet_checksum, calculated_checksum
@@ -209,7 +211,13 @@ impl KlvPacket {
             return Err(ErrorKind::InvalidChecksum);
         }
 
-        Ok(packet)
+        #[cfg(feature = "tracing")]
+        debug!(
+            "Found valid KLV packet with timestamp {}",
+            packet.precision_time_stamp()
+        );
+
+        Ok(Some(packet))
     }
 
     pub fn get_id(&self, tag: usize) -> Option<Klv> {
@@ -294,16 +302,16 @@ mod tests {
         )
         .collect();
         let checksum = KlvPacket::calculate_checksum(&packet_minus_checksum);
-        let packet = chain!(
+
+        chain!(
             Vec::from(packet_minus_checksum),
             Vec::from(checksum.to_be_bytes())
         )
-        .collect();
-        return packet;
+        .collect()
     }
 
     fn packet_1() -> Vec<u8> {
-        return packet_from_value(vec![0x03, 0x02, b'I', b'D']); // Mission ID is 'ID'.
+        packet_from_value(vec![0x03, 0x02, b'I', b'D']) // Mission ID is 'ID'.
     }
 
     #[test_case(packet_1, 47467, Some("ID".into()))]
@@ -313,7 +321,7 @@ mod tests {
         mission_id: Option<Arc<str>>,
     ) {
         let bytes = packet();
-        let packet = KlvPacket::from_bytes(bytes.into()).unwrap();
+        let packet = KlvPacket::from_bytes(bytes.into()).unwrap().unwrap();
         assert_eq!(packet.checksum(), checksum, "Checksum is incorrect");
         assert_eq!(
             packet.precision_time_stamp(),
@@ -323,13 +331,12 @@ mod tests {
         assert_eq!(packet.mission_id(), mission_id)
     }
 
-    #[test_case(Box::new([0x71, 0xF1, 0x00]), 113; "Short form")]
-    #[test_case(Box::new([0x81, 0xF1, 0x00]), 241; "Long-Form: One byte")]
-    #[test_case(Box::new([0x83, 0xF1, 0xFF, 0xF1]), 15859697; "Long-Form Three bytes")]
-    fn get_ber_value(bytes: Box<[u8]>, correct_length: usize) {
+    #[test_case(&[0x71, 0xF1, 0x00], 113; "Short form")]
+    #[test_case(&[0x81, 0xF1, 0x00], 241; "Long-Form: One byte")]
+    #[test_case(&[0x83, 0xF1, 0xFF, 0xF1], 15859697; "Long-Form Three bytes")]
+    fn get_ber_value(bytes: &[u8], correct_length: usize) {
         let mut test_bytes = Cursor::new(bytes.clone());
         let length = KlvPacket::get_ber_value(&mut test_bytes);
         assert_eq!(length, correct_length, "Failed to BER")
     }
 }
-

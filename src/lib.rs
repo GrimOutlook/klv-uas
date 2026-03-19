@@ -10,11 +10,8 @@ pub mod tag;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind {
-    #[error("No KLV packet found in buffer")]
-    NoKLVPacket,
     #[error("Tag `{0}` is currently unsupported")]
     UnsupportedTag(usize),
     #[error("Checksum for KLV packet is invalid")]
     InvalidChecksum,
 }
-

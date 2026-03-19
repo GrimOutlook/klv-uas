@@ -1,22 +1,21 @@
 [package]
 name = "klv-uas"
 version = "0.1.1"
-authors = ["Dominic Grimaldi <dominic.j.grimaldi@gmail.com>"]
 edition = "2021"
 description = "A simple library for parsing UAS KLV data from raw data."
-repository = "https://github.com/GrimOutlook/klv-uas"
 documentation = "https://docs.rs/klv-uas"
+repository = "https://github.com/GrimOutlook/klv-uas"
 license = "MIT"
 keywords = ["klv", "parser", "uas"]
 categories = ["aerospace::unmanned-aerial-vehicles", "multimedia::video"]
 
 [dependencies]
 bitvec = "1.0.1"
-log = { version = "0.4.21", default-features = false, optional = true }
 memmem = { version = "0.1.1", default-features = false, optional = true }
 strum = "0.26.2"
 strum_macros = "0.26.4"
 thiserror = "2.0.18"
+tracing = { version = "0.1.44", optional = true }
 
 [dev-dependencies]
 clap = { version = "4.5.11", features = ["derive"] }
@@ -24,11 +23,11 @@ clap_derive = "4.5.11"
 clap-verbosity-flag = "2.2.1"
 env_logger = "0.11.3"
 itertools = "0.13.0"
-log = "0.4.21"
 test-case = "3.3.1"
-ts-analyzer = { path = "../ts-analyzer", features = ["log"] }
+tracing = "0.1.44"
+ts-analyzer = { path = "../ts-analyzer", features = ["tracing"] }
 
 [features]
 ignore_incomplete = []
-log = ["dep:log"]
 search = ["dep:memmem"]
+tracing = ["dep:tracing"]

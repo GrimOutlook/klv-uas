@@ -5,8 +5,8 @@ use std::sync::Arc;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use bitvec::view::BitView;
-#[cfg(feature = "log")]
-use log::warn;
+#[cfg(feature = "tracing")]
+use tracing::warn;
 use strum_macros::EnumDiscriminants;
 
 use crate::ErrorKind;
@@ -190,7 +190,7 @@ impl KlvValue {
         }
         #[cfg(feature = "ignore_incomplete")]
         {
-            #[cfg(feature = "log")]
+            #[cfg(feature = "tracing")]
             warn!("Converting KLV bytes to {} is not yet supported", tag_type);
             KlvValue::Unimplemented
         }
