@@ -1,7 +1,13 @@
-#[cfg(feature = "log")]
-use log::{debug, trace};
+#[cfg(feature = "tracing")]
+use tracing::debug;
+#[cfg(feature = "tracing")]
+use tracing::info;
+#[cfg(feature = "tracing")]
+use tracing::trace;
 
-use crate::{klv_value::KlvValue, tag::Tag, Errors};
+use crate::ErrorKind;
+use crate::klv_value::KlvValue;
+use crate::tag::Tag;
 
 #[derive(Clone, Debug)]
 pub struct Klv {
@@ -10,20 +16,20 @@ pub struct Klv {
 }
 
 impl Klv {
-    pub fn new(tag_id: usize, raw_value: Box<[u8]>) -> Result<Klv, Errors> {
+    pub fn new(tag_id: usize, raw_value: Box<[u8]>) -> Result<Klv, ErrorKind> {
         // Convert the tag ID into the tag variant it corresponds to
         let tag = Tag::from(tag_id);
 
-        #[cfg(feature="log")]
-        trace!("Parsing value from tag [{:?}]", tag);
+        #[cfg(feature = "tracing")]
+        debug!("Parsing value from tag [{:?}]", tag);
 
         // Return early if we know this tag is not supported
         if tag == Tag::Unknown || tag == Tag::Deprecated {
-            return Err(Errors::UnsupportedTag(tag_id as usize))
+            return Err(ErrorKind::UnsupportedTag(tag_id));
         }
 
         let value = KlvValue::from_bytes(tag, &raw_value)?;
-        
+
         Ok(Klv { tag, value })
     }
 
