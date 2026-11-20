@@ -321,7 +321,7 @@ mod tests {
         mission_id: Option<Arc<str>>,
     ) {
         let bytes = packet();
-        let packet = KlvPacket::from_bytes(bytes.into()).unwrap().unwrap();
+        let packet = KlvPacket::from_bytes(&bytes).unwrap().unwrap();
         assert_eq!(packet.checksum(), checksum, "Checksum is incorrect");
         assert_eq!(
             packet.precision_time_stamp(),
@@ -329,6 +329,33 @@ mod tests {
             "Precision Time Stamp is incorrect"
         );
         assert_eq!(packet.mission_id(), mission_id)
+    }
+
+    // A Security Local Set (tag 48) is in most real packets; decoding it is
+    // not implemented, but it must not panic.
+    #[test]
+    fn security_set_does_not_panic() {
+        let bytes = packet_from_value(vec![0x30, 0x03, 0x01, 0x01, 0x01]);
+        let packet = KlvPacket::from_bytes(&bytes).unwrap().unwrap();
+        assert_eq!(packet.precision_time_stamp(), 4822678189205111);
+    }
+
+    // Target Width (tag 22) sent in 4 bytes, as in "Day Flight.mpg".
+    #[test]
+    fn oversized_value_is_an_error() {
+        let bytes = packet_from_value(vec![0x16, 0x04, 0x00, 0x00, 0x01, 0xC9]);
+        let err = KlvPacket::from_bytes(&bytes).unwrap_err();
+        assert!(matches!(
+            err,
+            crate::ErrorKind::InvalidLength { tag: 22, len: 4 }
+        ));
+    }
+
+    #[test]
+    fn invalid_text_does_not_panic() {
+        let bytes = packet_from_value(vec![0x03, 0x02, 0xFF, 0xFE]);
+        let packet = KlvPacket::from_bytes(&bytes).unwrap().unwrap();
+        assert!(packet.mission_id().is_some());
     }
 
     #[test_case(&[0x71, 0xF1, 0x00], 113; "Short form")]
