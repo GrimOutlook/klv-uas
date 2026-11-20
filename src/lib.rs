@@ -14,4 +14,6 @@ pub enum ErrorKind {
     UnsupportedTag(usize),
     #[error("Checksum for KLV packet is invalid")]
     InvalidChecksum,
+    #[error("Tag `{tag}` has {len} value bytes, more than its type holds")]
+    InvalidLength { tag: usize, len: usize },
 }

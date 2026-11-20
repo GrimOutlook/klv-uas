@@ -87,6 +87,27 @@ pub enum KlvValue {
 impl KlvValue {
     pub fn from_bytes(tag: Tag, bytes: &[u8]) -> Result<KlvValue, ErrorKind> {
         let t = tag.tag_type();
+        // bitvec's `load_be` panics when the slice is wider than the target
+        // integer, and senders do write some fixed-size tags wider than
+        // ST 0601 says (Target Width, tag 22, in 4 bytes in the public
+        // "Day Flight.mpg" sample). Report that as an error instead.
+        let width = match t {
+            KlvValueType::Int8 | KlvValueType::Uint8 => Some(1),
+            KlvValueType::Int16 | KlvValueType::Uint16 => Some(2),
+            KlvValueType::Int32 | KlvValueType::Uint32 => Some(4),
+            KlvValueType::Int | KlvValueType::Uint | KlvValueType::Uint64 => {
+                Some(8)
+            }
+            _ => None,
+        };
+        if let Some(width) = width {
+            if bytes.len() > width {
+                return Err(ErrorKind::InvalidLength {
+                    tag: tag.into(),
+                    len: bytes.len(),
+                });
+            }
+        }
         let value = match t {
             KlvValueType::Int => Self::int(bytes),
             KlvValueType::Int8 => Self::int8(bytes),
@@ -147,16 +168,7 @@ impl KlvValue {
     }
 
     fn utf8(bytes: &[u8]) -> KlvValue {
-        KlvValue::Utf8(
-            std::str::from_utf8(bytes)
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "Cannot create UTF8 string from bytes {:02X?}",
-                        bytes
-                    )
-                })
-                .into(),
-        )
+        KlvValue::Utf8(String::from_utf8_lossy(bytes).into())
     }
 
     fn imapb(bytes: &[u8]) -> KlvValue {
@@ -183,17 +195,16 @@ impl KlvValue {
         Self::klv_unimplemented("FLP")
     }
 
+    /// Value types the crate does not decode yet come back as
+    /// `KlvValue::Unimplemented` instead of panicking: real packets carry the
+    /// Security Local Set (tag 48) and IMAPB tags, and a panic there took
+    /// down the whole read. The `ignore_incomplete` feature is now the
+    /// default behaviour and kept only so existing builds still compile.
+    #[cfg_attr(not(feature = "tracing"), allow(unused_variables))]
     fn klv_unimplemented(tag_type: &str) -> KlvValue {
-        #[cfg(not(feature = "ignore_incomplete"))]
-        {
-            todo!("Implement converting KLV bytes to {}", tag_type);
-        }
-        #[cfg(feature = "ignore_incomplete")]
-        {
-            #[cfg(feature = "tracing")]
-            warn!("Converting KLV bytes to {} is not yet supported", tag_type);
-            KlvValue::Unimplemented
-        }
+        #[cfg(feature = "tracing")]
+        warn!("Converting KLV bytes to {} is not yet supported", tag_type);
+        KlvValue::Unimplemented
     }
 }
 
